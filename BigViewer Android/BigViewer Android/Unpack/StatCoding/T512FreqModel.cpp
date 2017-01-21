@@ -1,0 +1,196 @@
+// T512FreqModel.cpp: implementation of the T512FreqModel class.
+//
+//////////////////////////////////////////////////////////////////////
+//#include <stdafx.h>
+
+#include "T512FreqModel.h"
+#include <memory.h>
+
+//////////////////////////////////////////////////////////////////////
+// Construction/Destruction
+//////////////////////////////////////////////////////////////////////
+
+T512FreqModel::T512FreqModel(_TAnyCoder * _Coder):
+	Coder(_Coder)
+{
+	CumFreq1 = CumFreq;
+	CumFreq2 = CumFreq1 + 257;
+	CumFreq3 = CumFreq2 + 129;
+	CumFreq4 = CumFreq3 + 65;
+	CumFreq5 = CumFreq4 + 33;
+	CumFreq6 = CumFreq5 + 17;
+	CumFreq7 = CumFreq6 + 9;
+	CumFreq8 = CumFreq7 + 5;
+}
+
+T512FreqModel::T512FreqModel()
+{
+	CumFreq1 = CumFreq;
+	CumFreq2 = CumFreq1 + 257;
+	CumFreq3 = CumFreq2 + 129;
+	CumFreq4 = CumFreq3 + 65;
+	CumFreq5 = CumFreq4 + 33;
+	CumFreq6 = CumFreq5 + 17;
+	CumFreq7 = CumFreq6 + 9;
+	CumFreq8 = CumFreq7 + 5;
+}
+
+T512FreqModel::~T512FreqModel()
+{
+
+}
+
+//////////////////////////////////////////////////////////////////////
+// Internal usage methods
+//////////////////////////////////////////////////////////////////////
+
+uint16 T512FreqModel::GetCF(uint16 val)
+{
+	uint16 cf = 0;
+
+  if (val & 256)
+	  cf += CumFreq8[val >> 8];
+  if (val & 128)
+  	cf += CumFreq7[val >> 7];
+  if (val & 64)
+  	cf += CumFreq6[val >> 6];
+  if (val & 32)
+  	cf += CumFreq5[val >> 5];
+  if (val & 16)
+  	cf += CumFreq4[val >> 4];
+  if (val & 8)
+  	cf += CumFreq3[val >> 3];
+  if (val & 4)
+  	cf += CumFreq2[val >> 2];
+  if (val & 2)
+  	cf += CumFreq1[val >> 1];
+  if (val & 1)
+  	cf += Freq[val - 1];
+  return cf;
+}
+
+void T512FreqModel::UpdateModel(uint16 val)
+{
+	Freq[val] ++;
+	CumFreq1[((val) >> 1) + 1] ++, CumFreq2[((val) >> 2) + 1] ++,
+  CumFreq3[((val) >> 3) + 1] ++, CumFreq4[((val) >> 4) + 1] ++,
+  CumFreq5[((val) >> 5) + 1] ++, CumFreq6[((val) >> 6) + 1] ++,
+  CumFreq7[((val) >> 7) + 1] ++, CumFreq8[((val) >> 8) + 1] ++;
+
+  Total ++;
+  if (Total < 16384)
+  	return;
+
+  int cum = 1, i, ii;
+  for (i = 0; i < 512; i ++)
+  {
+  	Freq[i] = (Freq[i] + 1) >> 1;
+    cum += Freq[i];
+  }
+  Total = cum;
+
+  ii = 0;
+  for (i = 1; i < 256; i ++)
+  	CumFreq1[i] = Freq[ii] + Freq[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 128; i ++)
+  	CumFreq2[i] = CumFreq1[ii] + CumFreq1[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 64; i ++)
+  	CumFreq3[i] = CumFreq2[ii] + CumFreq2[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 32; i ++)
+  	CumFreq4[i] = CumFreq3[ii] + CumFreq3[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 16; i ++)
+  	CumFreq5[i] = CumFreq4[ii] + CumFreq4[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 8; i ++)
+  	CumFreq6[i] = CumFreq5[ii] + CumFreq5[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 4; i ++)
+  	CumFreq7[i] = CumFreq6[ii] + CumFreq6[ii + 1], ii += 2;
+  ii = 1;
+  for (i = 1; i < 2; i ++)
+  	CumFreq8[i] = CumFreq7[ii] + CumFreq7[ii + 1], ii += 2;
+}
+
+//////////////////////////////////////////////////////////////////////
+// External usage methods
+//////////////////////////////////////////////////////////////////////
+
+void T512FreqModel::Clear(void)
+{
+	memset(Freq, 0, sizeof(Freq));
+	memset(CumFreq, 0, sizeof(CumFreq));
+  Total = 1;
+}
+
+void T512FreqModel::EncodeIn(uint16 val, uint16 min, uint16 max)
+{
+	uint16 cfmax, cfval, cfmin;
+  cfmin = GetCF(min);
+  cfmax = GetCF(max) - cfmin;
+  cfval = GetCF(val) - cfmin;
+
+	if (Freq[val])
+		Coder->Encode(cfval + 1, Freq[val],	cfmax + Freq[max] + 1);
+  else
+  {
+  	Coder->Encode(0, 1, cfmax + Freq[max] + 1);
+    Coder->Encode(val - min, 1, max - min + 1);
+  }
+
+  UpdateModel(val);
+}
+
+uint16 T512FreqModel::DecodeIn(uint16 min,	uint16 max)
+{
+	uint16 cfmax, cfmin, cl, rcf;
+  cfmin = GetCF(min);
+  cfmax = GetCF(max) - cfmin;
+
+	uint16 cf = (uint16)(Coder->GetFreq(cfmax + Freq[max] + 1));
+  int val;
+
+  if (! cf)
+  {
+  	Coder->Decode(0, 1, cfmax + Freq[max] + 1);
+    val = Coder->GetFreq(max - min + 1);
+    Coder->Decode(val, 1, max - min + 1);
+    val += min;
+  }
+  else
+  {
+    rcf = cf;
+    cf += cfmin - 1;
+    val = 0;
+
+    if (cf >= (cl = CumFreq8[1]))
+    	cf -= cl, val += 256;
+    if (cf >= (cl = CumFreq7[(val >> 7) + 1]))
+    	cf -= cl, val += 128;
+    if (cf >= (cl = CumFreq6[(val >> 6) + 1]))
+    	cf -= cl, val += 64;
+    if (cf >= (cl = CumFreq5[(val >> 5) + 1]))
+    	cf -= cl, val += 32;
+    if (cf >= (cl = CumFreq4[(val >> 4) + 1]))
+    	cf -= cl, val += 16;
+    if (cf >= (cl = CumFreq3[(val >> 3) + 1]))
+    	cf -= cl, val += 8;
+    if (cf >= (cl = CumFreq2[(val >> 2) + 1]))
+    	cf -= cl, val += 4;
+    if (cf >= (cl = CumFreq1[(val >> 1) + 1]))
+    	cf -= cl, val += 2;
+    if (cf >= (cl = Freq[val]))
+    	cf -= cl, val ++;
+
+    rcf -= cf;
+    while (! Freq[val]) val ++;
+
+    Coder->Decode(rcf, Freq[val], cfmax + Freq[max] + 1);
+  }
+
+  UpdateModel(val);
+  return val;
+}

@@ -1,0 +1,65 @@
+//---------------------------------------------------------------------------
+
+#ifndef TPlanshetH
+#define TPlanshetH
+
+struct BITMAPINFO_256
+{
+BITMAPINFOHEADER bmiHeader;
+RGBQUAD bmiColors[256];
+};
+
+struct BITMAPINFO_MY
+{
+BITMAPINFOHEADER bmiHeader;
+RGBQUAD* bmiColors;
+};
+
+class TDrawable
+{
+protected:
+	int Cx;
+	int Cy;
+
+public:
+        int virtual Draw(HDC hdc,int w,int h)=0;
+        void virtual Scroll(int dx,int dy,int w,int h)=0;
+        void virtual SetCoord(int x,int y,int w,int h)=0;
+
+        int GetCx(){return Cx;};
+        int GetCy(){return Cy;};
+};
+
+const int
+        err_Ok=0,                       //No errors
+        err_InvalParam=1001,            //Invalid parameters
+		err_NoMem=1002;                  //No memory
+
+//---------------------------------------------------------------------------
+class TPlanshet : public TDrawable
+{
+private:
+		BITMAP* bmp;            //Current planshet
+		BITMAPINFO_256 bmi;     //Current planshet info
+
+		TDrawable* map;         //Main Big Map
+		int LastError;          //LastError
+
+protected:
+		void CurPos(int& mCx,int& mCy,int& mW,int& mH);
+
+public:
+		TPlanshet(int Handle,TDrawable* BigMap,int w,int h);
+		~TPlanshet();
+
+		int Draw(void* canvas,int w,int h);
+
+		void Scroll(int dx,int dy,int w,int h);
+		void SetCoord(int x,int y,int w,int h);
+		void GoToCurPos(int w,int h);
+		int GetWidth(){return bmi.bmiHeader.biWidth;};
+		int GetHeight(){return bmi.bmiHeader.biHeight;};
+		int GetError(){return LastError;};
+};
+#endif
+

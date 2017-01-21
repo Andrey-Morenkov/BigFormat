@@ -1,0 +1,76 @@
+//---------------------------------------------------------------------------
+#ifndef TDrawableH
+#define TDrawableH
+//---------------------------------------------------------------------------
+typedef long LONG;
+typedef unsigned long DWORD;
+typedef unsigned short WORD;
+typedef unsigned char BYTE;
+typedef void* LPVOID;
+
+struct BMP
+{
+LONG        bmType;
+LONG        bmWidth;
+LONG        bmHeight;
+LONG        bmWidthBytes;
+WORD        bmPlanes;
+WORD        bmBitsPixel;
+LPVOID      bmBits;
+};
+
+struct BMPHDR
+{
+		DWORD      biSize;
+		LONG       biWidth;
+		LONG       biHeight;
+		WORD       biPlanes;
+		WORD       biBitCount;
+		DWORD      biCompression;
+		DWORD      biSizeImage;
+		LONG       biXPelsPerMeter;
+		LONG       biYPelsPerMeter;
+		DWORD      biClrUsed;
+		DWORD      biClrImportant;
+};
+
+struct RGBQD {
+		BYTE    rgbBlue;
+		BYTE    rgbGreen;
+		BYTE    rgbRed;
+		BYTE    rgbReserved;
+};
+
+struct BITMAPINFO_256
+{
+struct BMPHDR bmiHeader;
+RGBQD bmiColors[256];
+};
+
+struct BITMAPINFO_MY
+{
+BMPHDR bmiHeader;
+RGBQD* bmiColors;
+};
+
+class TDrawable
+{
+protected:
+	int Cx;
+	int Cy;
+
+public:
+		int virtual Draw(void* canvas,int w,int h)=0;
+        void virtual Scroll(int dx,int dy,int w,int h)=0;
+        void virtual SetCoord(int x,int y,int w,int h)=0;
+
+        int GetCx(){return Cx;};
+        int GetCy(){return Cy;};
+};
+
+const int
+        err_Ok=0,                       //No errors
+        err_InvalParam=1001,            //Invalid parameters
+        err_NoMem=1002;                  //No memory
+#endif
+ 
